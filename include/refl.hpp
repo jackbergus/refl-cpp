@@ -47,36 +47,36 @@ constexpr  auto getBitsCount(T data, size_t startBit = 0) -> typename std::enabl
         getBitsCount(data, startBit + 1) + ((data & (1ull << startBit)) ? 1 : 0);
 }
 
-// We should support unsigned enums too
-template<typename T>
-constexpr   auto getBitsCount(T data, size_t startBit = 0) -> typename std::enable_if<std::is_enum<T>::value, size_t>::type
-{
-    return (startBit == sizeof(T) * 8) ? 0 :
-        getBitsCount(data, startBit + 1) + ((static_cast<typename std::underlying_type<T>::type>(data) & (1ull << startBit)) ? 1 : 0);
-}
-
-template<typename T>
-   constexpr   auto getBitsCount(T data, size_t startBit = 0) -> typename std::enable_if<std::is_signed<T>::value, size_t>::type {
+    template<typename T>
+   constexpr   auto getBitsCount(const T datadata) -> typename std::enable_if<std::is_signed<T>::value||std::is_class<T>::value||std::is_enum<T>::value, size_t>::type {
     return sizeof(T)*8;
 }
+
+    template<typename T, uint64_t N>
+   constexpr   auto getBitsCount(const T (&data)[N]) {
+    // constexpr uint64_t N = sizeof(T)/sizeof(H);
+    return getBitsCount<T>(data[0])*N;
+}
+
+
 
 #ifdef __clang__
     #pragma clang diagnostic push
     #pragma clang diagnostic ignored "-Wbitfield-constant-conversion"
 #endif
-template<typename StructType, typename StructFieldsType, StructFieldsType ...initVals>
-constexpr   StructType getFilledStructImpl(StructType s, ...)
-{
-    return s;
-}
-
-template<typename StructType, typename StructFieldsType, StructFieldsType ...initVals>
-constexpr   StructType getFilledStructImpl(StructType s, decltype(StructType{ initVals... }, int()) = 0)
-{
-    // can you numeric_limits::max() here instead of -1, but it will require casting to and from underlying type for enum
-    return getFilledStructImpl<StructType, StructFieldsType, initVals...,
-                               static_cast<StructFieldsType>(-1)> (StructType { initVals... }, 0);
-}
+// template<typename StructType, typename StructFieldsType, StructFieldsType ...initVals>
+// constexpr   StructType getFilledStructImpl(StructType s, ...)
+// {
+//     return s;
+// }
+//
+// template<typename StructType, typename StructFieldsType, StructFieldsType ...initVals>
+// constexpr   StructType getFilledStructImpl(StructType s, decltype(StructType{ initVals... }, int()) = 0)
+// {
+//     // can you numeric_limits::max() here instead of -1, but it will require casting to and from underlying type for enum
+//     return getFilledStructImpl<StructType, StructFieldsType, initVals...,
+//                                static_cast<StructFieldsType>(-1)> (StructType { initVals... }, 0);
+// }
 
 // template<typename StructType, typename StructFieldsType>
 // constexpr   StructType getFilledStruct()
@@ -111,8 +111,10 @@ constexpr   StructType getFilledStructImpl(StructType s, decltype(StructType{ in
 
 // Main macro
 #define bitsizeof(structType, fieldName) \
-    ::BitFieldDetails::getBitsCount(std::numeric_limits<structType>::max().fieldName)
+    ::BitFieldDetails::getBitsCount(std::numeric_limits<structType>::max().*(&structType::fieldName))
 
+#define bitsizeofbit(structType, fieldName) \
+::BitFieldDetails::getBitsCount(std::numeric_limits<structType>::max().fieldName)
 
 #ifdef _MSC_VER
 // Disable VS warning for "Not enough arguments for macro"
@@ -4494,7 +4496,7 @@ REFL_DETAIL_MEMBER_COMMON(field, FieldName_, __VA_ARGS__) \
 public: \
 typedef decltype(type::FieldName_) value_type; \
 static constexpr uint64_t* pointer {  nullptr }; \
-static constexpr auto bitsize{ bitsizeof(type, FieldName_)}; \
+static constexpr auto bitsize{ bitsizeofbit(type, FieldName_)}; \
         static constexpr bool isbitfield{ true }; \
 /*REFL_DETAIL_MEMBER_PROXY(FieldName_);*/ \
 };
