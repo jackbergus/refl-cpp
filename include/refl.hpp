@@ -1,6 +1,7 @@
 // The MIT License (MIT)
 //
 // Copyright (c) 2020 Veselin Karaganev (@veselink1) and Contributors
+// Copyright (c) 2026 Giacomo Bergami (@jackbergus, @gyankos, @thebergami)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +28,6 @@
 #include <cstring>
 #include <array>
 #include <utility> // std::move, std::forward
-#include <optional>
 #include <tuple>
 #include <type_traits>
 #include <ostream>
@@ -35,6 +35,80 @@
 #include <iomanip> // std::quoted
 #include <memory>
 #include <complex>
+#include <arbitrary_bitset.h>
+
+// Helper constexpr functions
+namespace BitFieldDetails
+{
+template<typename T>
+constexpr  auto getBitsCount(T data, size_t startBit = 0) -> typename std::enable_if<std::is_unsigned<T>::value, size_t>::type
+{
+    return (startBit == sizeof(T) * 8) ? 0 :
+        getBitsCount(data, startBit + 1) + ((data & (1ull << startBit)) ? 1 : 0);
+}
+
+// We should support unsigned enums too
+template<typename T>
+constexpr   auto getBitsCount(T data, size_t startBit = 0) -> typename std::enable_if<std::is_enum<T>::value, size_t>::type
+{
+    return (startBit == sizeof(T) * 8) ? 0 :
+        getBitsCount(data, startBit + 1) + ((static_cast<typename std::underlying_type<T>::type>(data) & (1ull << startBit)) ? 1 : 0);
+}
+
+template<typename T>
+   constexpr   auto getBitsCount(T data, size_t startBit = 0) -> typename std::enable_if<std::is_signed<T>::value, size_t>::type {
+    return sizeof(T)*8;
+}
+
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wbitfield-constant-conversion"
+#endif
+template<typename StructType, typename StructFieldsType, StructFieldsType ...initVals>
+constexpr   StructType getFilledStructImpl(StructType s, ...)
+{
+    return s;
+}
+
+template<typename StructType, typename StructFieldsType, StructFieldsType ...initVals>
+constexpr   StructType getFilledStructImpl(StructType s, decltype(StructType{ initVals... }, int()) = 0)
+{
+    // can you numeric_limits::max() here instead of -1, but it will require casting to and from underlying type for enum
+    return getFilledStructImpl<StructType, StructFieldsType, initVals...,
+                               static_cast<StructFieldsType>(-1)> (StructType { initVals... }, 0);
+}
+
+template<typename StructType, typename StructFieldsType>
+constexpr   StructType getFilledStruct()
+{
+
+    using UnderlyingStructType = typename std::conditional<
+        std::is_enum<StructFieldsType>::value,
+            std::underlying_type<StructFieldsType>,
+            std::remove_cv<StructFieldsType>>::type::type;
+    if constexpr (std::is_integral<UnderlyingStructType>::value) {
+        if constexpr (std::is_signed<UnderlyingStructType>::value) {
+            return getFilledStructImpl<StructType, StructFieldsType>(StructType{}, 0);
+        } else if constexpr (std::is_unsigned<UnderlyingStructType>::value) {
+            // static_assert(std::is_unsigned<UnderlyingStructType>::value,
+            //       "Bit field calculation only works with unsigned values");
+            return getFilledStructImpl<StructType, StructFieldsType>(StructType{}, 0);
+        } else {
+            static_assert(false, "Unexpected integral type being neither signed nor unsigned");
+        }
+    } else {
+        static_assert(false, "Bit field calculation works only with integral types");
+    }
+}
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#endif
+} // namespace BitFieldDetails
+
+// Main macro
+#define bitsizeof(structType, fieldName) \
+    ::BitFieldDetails::getBitsCount(std::numeric_limits<structType>::max().fieldName)
+
 
 #ifdef _MSC_VER
 // Disable VS warning for "Not enough arguments for macro"
@@ -1996,10 +2070,10 @@ namespace refl
          */
         struct property : public usage::function
         {
-            const std::optional<const char*> friendly_name;
+            const char* friendly_name;
 
             constexpr property() noexcept
-                : friendly_name{}
+                : friendly_name{nullptr}
             {
             }
 
@@ -2189,6 +2263,7 @@ namespace refl
                 }
             };
 
+
             template <typename Member>
             struct instance_field_invoker
             {
@@ -2207,6 +2282,7 @@ namespace refl
 
             template <typename Member>
             static_field_invoker<Member> field_type_switch(std::true_type);
+
 
             template <typename Member>
             instance_field_invoker<Member> field_type_switch(std::false_type);
@@ -2388,6 +2464,31 @@ namespace refl
 
         };
 
+        template<typename T, int x, int to>
+struct refl_static_for {
+            constexpr static uint64_t bit_val() {
+                return refl::trait::get_t<x, member_list<T>>::bitsize + refl_static_for<T, x+1, to>::bit_val();
+            }
+        };
+
+        template<typename T, int to>
+        struct refl_static_for<T, to, to> {
+            constexpr static uint64_t bit_val() {
+                return 0;
+            }
+        };
+
+        template<typename V, uint64_t N = member_list<V>::size>
+        constexpr uint64_t bit_val() {
+            return refl_static_for<V, 0, N>::bit_val();
+        }
+
+        template<typename V, uint64_t N = member_list<V>::size>
+constexpr uint64_t uint64_map_val() {
+            constexpr uint64_t val= refl_static_for<V, 0, N>::bit_val();
+            return val /sizeof( uint64_t) + ((val%sizeof(uint64_t) == 0) ? 0 : 1);
+        }
+
         /**
          * @brief Represents a reflected field.
          */
@@ -2429,9 +2530,24 @@ namespace refl
              */
             static constexpr auto pointer{ member::pointer };
 
+            /**
+             * The bitsize of the associated field
+             */
+            static constexpr auto bitsize{ member::bitsize };
+
+            /**
+             * Whether the field represents a bitfield. If this is true, then the pointer information cannot be trusted
+             */
+            static constexpr auto is_bitfield{ member::isbitfield };
+
+            /**
+             * Returns the bitfield offset for the value of interest, just in case you're having bit fields and you wanna get the values, forsooth
+             */
+            static constexpr uint64_t bitfield_offset { bit_val<T, N>()};
+
         private:
 
-            using invoker = decltype(detail::field_type_switch<field_descriptor>(std::bool_constant<is_static>{}));
+            //using invoker = decltype(detail::field_type_switch<field_descriptor>(std::bool_constant<is_static>{}));
 
         public:
 
@@ -2459,11 +2575,11 @@ namespace refl
              * A synonym for get().
              * \copydetails refl::descriptor::invoke
              */
-            template <typename... Args>
+            /*template <typename... Args>
             constexpr auto operator()(Args&&... args) const noexcept -> decltype(invoker::invoke(std::forward<Args>(args)...))
             {
                 return invoker::invoke(std::forward<Args>(args)...);
-            }
+            }*/
 
         };
 
@@ -4089,51 +4205,51 @@ namespace refl
             return refl::runtime::debug_str(std::forward_as_tuple(static_cast<const Ts&>(values)...), true);
         }
 
-        /**
-         * Invokes the specified member with the provided arguments.
-         * When used with a member that is a field, the function gets or sets the value of the field.
-         * The list of members is initially filtered by the type of the arguments provided.
-         * THe filtered list is then searched at runtime by member name for the specified member
-         * and that member is then invoked by operator(). If no match is found,
-         * an std::runtime_error is thrown.
-         */
-        template <typename U, typename T, typename... Args>
-        U invoke(T&& target, const char* name, Args&&... args)
-        {
-            using type = std::remove_reference_t<T>;
-            static_assert(refl::trait::is_reflectable_v<type>, "Unsupported type!");
-            typedef type_descriptor<type> type_descriptor;
-
-            std::conditional_t<std::is_void_v<U>, bool, std::optional<U>> result{};
-
-            for_each(type_descriptor::members, [&](auto member) {
-                using member_t = decltype(member);
-                if (result) return;
-
-                if constexpr (std::is_invocable_r_v<U, decltype(member), T, Args...>) {
-                    if constexpr (trait::is_member_v<member_t>) {
-                        if (std::strcmp(member.name.c_str(), name) == 0) {
-                            if constexpr (std::is_void_v<U>) {
-                                member(target, std::forward<Args>(args)...);
-                                result = true;
-                            }
-                            else {
-                                result.emplace(member(target, std::forward<Args>(args)...));
-                            }
-                        }
-                    }
-                }
-            });
-
-            if (!result) {
-                throw std::runtime_error(std::string("The member ")
-                    + type_descriptor::name.str() + "::" + name
-                    + " is not compatible with the provided parameters or return type, is not reflected or does not exist!");
-            }
-            if constexpr (!std::is_void_v<U>) {
-                return std::move(*result);
-            }
-        }
+        // /**
+        //  * Invokes the specified member with the provided arguments.
+        //  * When used with a member that is a field, the function gets or sets the value of the field.
+        //  * The list of members is initially filtered by the type of the arguments provided.
+        //  * THe filtered list is then searched at runtime by member name for the specified member
+        //  * and that member is then invoked by operator(). If no match is found,
+        //  * an std::runtime_error is thrown.
+        //  */
+        // template <typename U, typename T, typename... Args>
+        // U invoke(T&& target, const char* name, Args&&... args)
+        // {
+        //     using type = std::remove_reference_t<T>;
+        //     static_assert(refl::trait::is_reflectable_v<type>, "Unsupported type!");
+        //     typedef type_descriptor<type> type_descriptor;
+        //
+        //     std::conditional_t<std::is_void_v<U>, bool, std::optional<U>> result{};
+        //
+        //     for_each(type_descriptor::members, [&](auto member) {
+        //         using member_t = decltype(member);
+        //         if (result) return;
+        //
+        //         if constexpr (std::is_invocable_r_v<U, decltype(member), T, Args...>) {
+        //             if constexpr (trait::is_member_v<member_t>) {
+        //                 if (std::strcmp(member.name.c_str(), name) == 0) {
+        //                     if constexpr (std::is_void_v<U>) {
+        //                         member(target, std::forward<Args>(args)...);
+        //                         result = true;
+        //                     }
+        //                     else {
+        //                         result.emplace(member(target, std::forward<Args>(args)...));
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     });
+        //
+        //     if (!result) {
+        //         throw std::runtime_error(std::string("The member ")
+        //             + type_descriptor::name.str() + "::" + name
+        //             + " is not compatible with the provided parameters or return type, is not reflected or does not exist!");
+        //     }
+        //     if constexpr (!std::is_void_v<U>) {
+        //         return std::move(*result);
+        //     }
+        // }
 
     } // namespace runtime
 
@@ -4362,9 +4478,22 @@ namespace refl::detail
         REFL_DETAIL_MEMBER_COMMON(field, FieldName_, __VA_ARGS__) \
     public: \
         typedef decltype(type::FieldName_) value_type; \
-        static constexpr auto pointer{ &type::FieldName_ }; \
-        REFL_DETAIL_MEMBER_PROXY(FieldName_); \
+        static constexpr auto pointer { &type::FieldName_ }; \
+        static constexpr auto bitsize{ bitsizeof(type, FieldName_)}; \
+        static constexpr bool isbitfield{ false }; \
+        /*REFL_DETAIL_MEMBER_PROXY(FieldName_);*/ \
     };
+
+#define REFL_BITFIELD(FieldName_, ...) \
+REFL_DETAIL_MEMBER_HEADER { \
+REFL_DETAIL_MEMBER_COMMON(field, FieldName_, __VA_ARGS__) \
+public: \
+typedef decltype(type::FieldName_) value_type; \
+static constexpr uint64_t* pointer {  nullptr }; \
+static constexpr auto bitsize{ bitsizeof(type, FieldName_)}; \
+        static constexpr bool isbitfield{ true }; \
+/*REFL_DETAIL_MEMBER_PROXY(FieldName_);*/ \
+};
 
 /**
  * Creates reflection information for a public functions. Takes an optional attribute list.
@@ -4769,6 +4898,7 @@ REFL_END
 #define REFL_DETAIL_EX_1_type(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_TYPE)(__VA_ARGS__))
 #define REFL_DETAIL_EX_1_template(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_TEMPLATE)(__VA_ARGS__))
 #define REFL_DETAIL_EX_1_field(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_FIELD)(__VA_ARGS__))
+#define REFL_DETAIL_EX_1_bitfield(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_BITFIELD)(__VA_ARGS__))
 #define REFL_DETAIL_EX_1_func(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_FUNC)(__VA_ARGS__))
 
 #endif // __INTELLISENSE__
@@ -4782,6 +4912,58 @@ REFL_END
 #define REFL_DETAIL_EX_END() REFL_END
 
 #define REFL_AUTO(...) REFL_DETAIL_FOR_EACH(REFL_DETAIL_EX_, __VA_ARGS__) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_DETAIL_EX_END)())
+
+#define CHECK_TYPE_REFL_DECL_FOR_BIT_FIELDS(T)          static_assert(sizeof(T)*8 == refl::descriptor::bit_val<T>());
+
+
+
+
+constexpr static inline uint64_t pow2(uint64_t val) {
+    return val ==0 ? 1 : 2*pow2(val-1);
+}
+
+constexpr static inline uint64_t bit_fill(uint64_t val) {
+    return val ==0 ? 0 : bit_fill(val-1)+pow2(val-1);
+}
+
+template
+<typename T, uint64_t idx>
+static inline auto getter(const T& val) {
+    if constexpr (refl::trait::get_t<idx, refl::member_list<T>>::is_bitfield) {
+        uint64_t current_map[refl::descriptor::uint64_map_val<T>()];
+        arbitrary_bitset<refl::descriptor::bit_val<T>()> wrapper((uint64_t *) &val), map(current_map);
+        map.clear();
+        map.set_mask(bit_fill(refl::trait::get_t<idx, refl::member_list<T> >::bitsize),
+                     refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
+        // std::cout << map.toString() << std::endl;
+        map &= wrapper;
+        // std::cout << map.toString() << std::endl;
+        map >>= refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset;
+        // std::cout << map.toString() << std::endl;
+        return map.bitset[0];
+    } else {
+        return val.*(refl::trait::get_t<idx, refl::member_list<T>>::pointer);
+    }
+}
+
+template
+<typename T,  uint64_t idx, typename K = typename refl::trait::get_t<idx, refl::member_list<T> >::value_type>
+static inline auto setter(T& orig, const K& val) {
+    if constexpr (refl::trait::get_t<idx, refl::member_list<T>>::is_bitfield) {
+        uint64_t current_map[refl::descriptor::uint64_map_val<T>()];
+        arbitrary_bitset<refl::descriptor::bit_val<T>()> wrapper((uint64_t *) &orig), map(current_map);
+        map.clear();
+        map.set_mask(bit_fill(refl::trait::get_t<idx, refl::member_list<T> >::bitsize), refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
+        map.invert();
+        wrapper &= map;
+        map.clear();
+        map.set_mask(val, refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
+        wrapper |= map;
+    } else {
+        return orig.*(refl::trait::get_t<idx, refl::member_list<T>>::pointer) = val;
+    }
+}
+
 
 #endif // !defined(REFL_NO_AUTO_MACRO)
 
