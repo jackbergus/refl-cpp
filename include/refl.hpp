@@ -4490,6 +4490,17 @@ namespace refl::detail
         /*REFL_DETAIL_MEMBER_PROXY(FieldName_);*/ \
     };
 
+#define REFL_FIELD_NOBITSIZE(FieldName_, ...) \
+REFL_DETAIL_MEMBER_HEADER { \
+REFL_DETAIL_MEMBER_COMMON(field, FieldName_, __VA_ARGS__) \
+public: \
+typedef decltype(type::FieldName_) value_type; \
+static constexpr auto pointer { &type::FieldName_ }; \
+static constexpr uint64_t bitsize{ 0 }; \
+static constexpr bool isbitfield{ false }; \
+/*REFL_DETAIL_MEMBER_PROXY(FieldName_);*/ \
+};
+
 #define REFL_BITFIELD(FieldName_, ...) \
 REFL_DETAIL_MEMBER_HEADER { \
 REFL_DETAIL_MEMBER_COMMON(field, FieldName_, __VA_ARGS__) \
@@ -4904,6 +4915,7 @@ REFL_END
 #define REFL_DETAIL_EX_1_type(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_TYPE)(__VA_ARGS__))
 #define REFL_DETAIL_EX_1_template(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_TEMPLATE)(__VA_ARGS__))
 #define REFL_DETAIL_EX_1_field(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_FIELD)(__VA_ARGS__))
+#define REFL_DETAIL_EX_1_sfield(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_FIELD_NOBITSIZE)(__VA_ARGS__))
 #define REFL_DETAIL_EX_1_bitfield(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_BITFIELD)(__VA_ARGS__))
 #define REFL_DETAIL_EX_1_func(...) REFL_DETAIL_EX_EXPAND(REFL_DETAIL_EX_DEFER(REFL_FUNC)(__VA_ARGS__))
 
