@@ -78,28 +78,32 @@ constexpr   StructType getFilledStructImpl(StructType s, decltype(StructType{ in
                                static_cast<StructFieldsType>(-1)> (StructType { initVals... }, 0);
 }
 
-template<typename StructType, typename StructFieldsType>
-constexpr   StructType getFilledStruct()
-{
-
-    using UnderlyingStructType = typename std::conditional<
-        std::is_enum<StructFieldsType>::value,
-            std::underlying_type<StructFieldsType>,
-            std::remove_cv<StructFieldsType>>::type::type;
-    if constexpr (std::is_integral<UnderlyingStructType>::value) {
-        if constexpr (std::is_signed<UnderlyingStructType>::value) {
-            return getFilledStructImpl<StructType, StructFieldsType>(StructType{}, 0);
-        } else if constexpr (std::is_unsigned<UnderlyingStructType>::value) {
-            // static_assert(std::is_unsigned<UnderlyingStructType>::value,
-            //       "Bit field calculation only works with unsigned values");
-            return getFilledStructImpl<StructType, StructFieldsType>(StructType{}, 0);
-        } else {
-            static_assert(false, "Unexpected integral type being neither signed nor unsigned");
-        }
-    } else {
-        static_assert(false, "Bit field calculation works only with integral types");
-    }
-}
+// template<typename StructType, typename StructFieldsType>
+// constexpr   StructType getFilledStruct()
+// {
+//
+//     using UnderlyingStructType = typename std::conditional<
+//         std::is_enum<StructFieldsType>::value,
+//             std::underlying_type<StructFieldsType>,
+//             std::remove_cv<StructFieldsType>>::type::type;
+//     if constexpr (std::is_array<UnderlyingStructType>::value) {
+//         using H = typename std::remove_all_extents_t<UnderlyingStructType>;
+//         constexpr uint64_t N = sizeof(UnderlyingStructType)/sizeof(H);
+//         return getFilledStructImpl<StructType, StructFieldsType>(StructType{}, 0);
+//     } else if constexpr (std::is_integral<UnderlyingStructType>::value) {
+//         if constexpr (std::is_signed<UnderlyingStructType>::value) {
+//             return getFilledStructImpl<StructType, StructFieldsType>(StructType{}, 0);
+//         } else if constexpr (std::is_unsigned<UnderlyingStructType>::value) {
+//             // static_assert(std::is_unsigned<UnderlyingStructType>::value,
+//             //       "Bit field calculation only works with unsigned values");
+//             return getFilledStructImpl<StructType, StructFieldsType>(StructType{}, 0);
+//         } else {
+//             static_assert(false, "Unexpected integral type being neither signed nor unsigned");
+//         }
+//     } else {
+//         static_assert(false, "Bit field calculation works only with integral types");
+//     }
+// }
 #ifdef __clang__
     #pragma clang diagnostic pop
 #endif
