@@ -41,7 +41,7 @@
 namespace BitFieldDetails
 {
 template<typename T>
-constexpr  auto getBitsCount(T data, size_t startBit = 0) -> typename std::enable_if<std::is_unsigned<T>::value, size_t>::type
+constexpr  auto getBitsCount(const T data, size_t startBit = 0) -> typename std::enable_if<std::is_unsigned<T>::value, size_t>::type
 {
     return (startBit == sizeof(T) * 8) ? 0 :
         getBitsCount(data, startBit + 1) + ((data & (1ull << startBit)) ? 1 : 0);
