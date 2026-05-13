@@ -252,15 +252,17 @@ std::string toString() const {
     }
 
     void set_mask(uint64_t mask, uint64_t lowbit) {
-        int index = lowbit / (sizeof(uint64_t)*8);
-        int offset = lowbit % (sizeof(uint64_t)*8);
+        uint64_t index = lowbit / BIT_SIZE;
+        uint64_t offset = lowbit % BIT_SIZE;
         auto val = (mask<<offset);
         for (uint64_t j = 0; index+j< MAX_ARRAY_SIZE && j<sizeof(uint64_t)/BYTE_SIZE; j++) {
             bitset[index+j] |= ((unsigned char*)&val)[j];
         }
         mask >>= ((sizeof(uint64_t)*8 - offset));
-        for (uint64_t j = 0; index+j+sizeof(uint64_t)/BYTE_SIZE< MAX_ARRAY_SIZE && j<sizeof(uint64_t)/BYTE_SIZE; j++) {
-            bitset[index+j+sizeof(uint64_t)/BYTE_SIZE] |= ((unsigned char*)&mask)[j];
+        if (mask != 0) {
+            for (uint64_t j = 0; index+j+sizeof(uint64_t)/BYTE_SIZE< MAX_ARRAY_SIZE && j<sizeof(uint64_t)/BYTE_SIZE; j++) {
+                bitset[index+j+sizeof(uint64_t)/BYTE_SIZE] |= ((unsigned char*)&mask)[j];
+            }
         }
         // bitset[index] |= (mask<<offset);
         // if (index*((sizeof(uint64_t)))+1 < Size) {

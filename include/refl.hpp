@@ -4954,19 +4954,19 @@ static inline auto getter(const T& val) {
         // std::cout << std::endl << std::endl << idx << "-th access of field with size " << refl::trait::get_t<idx, refl::member_list<T> >::bitsize << std::endl;
         map.set_mask(bit_fill(refl::trait::get_t<idx, refl::member_list<T> >::bitsize),
                      refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
-        std::cout << map.toString() << std::endl;
-        std::cout << wrapper.toString() << std::endl;
+        // std::cout << map.toString() << std::endl;
+        // std::cout << wrapper.toString() << std::endl;
         map &= wrapper;
-        std::cout << map.toString() << std::endl;
+        // std::cout << map.toString() << std::endl;
         map >>= refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset;
-        std::cout << map.toString() << std::endl;
+        // std::cout << map.toString() << std::endl;
         uint64_t result = 0;
         memcpy(&result, map.bitset, (refl::trait::get_t<idx, refl::member_list<T> >::bitsize/sizeof(arbitrary_bitset::T)) + (refl::trait::get_t<idx, refl::member_list<T> >::bitsize%sizeof(arbitrary_bitset::T) ? 1 : 0));
-        std::cout << "result=" << result << std::endl;
-        if (result == 0) {
-            map.set_mask(bit_fill(refl::trait::get_t<idx, refl::member_list<T> >::bitsize),
-             refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
-        }
+        // std::cout << "result=" << result << std::endl;
+        // if (result == 0) {
+        //     map.set_mask(bit_fill(refl::trait::get_t<idx, refl::member_list<T> >::bitsize),
+        //      refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
+        // }
         return result;
     } else {
         return val.*(refl::trait::get_t<idx, refl::member_list<T>>::pointer);
