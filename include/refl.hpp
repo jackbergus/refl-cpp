@@ -2492,7 +2492,7 @@ struct refl_static_for {
         template<typename V, uint64_t N = member_list<V>::size>
 constexpr uint64_t uint64_map_val() {
             constexpr uint64_t val= refl_static_for<V, 0, N>::bit_val();
-            return val /sizeof( uint64_t) + ((val%sizeof(uint64_t) == 0) ? 0 : 1);
+            return val /sizeof( arbitrary_bitset::T) + ((val%sizeof(arbitrary_bitset::T) == 0) ? 0 : 1);
         }
 
         /**
@@ -4948,17 +4948,26 @@ template
 <typename T, uint64_t idx>
 static inline auto getter(const T& val) {
     if constexpr (refl::trait::get_t<idx, refl::member_list<T>>::is_bitfield) {
-        uint64_t current_map[refl::descriptor::uint64_map_val<T>()];
-        arbitrary_bitset<refl::descriptor::bit_val<T>()> wrapper((uint64_t *) ((void*)&val)), map(current_map);
+        unsigned char current_map[refl::descriptor::uint64_map_val<T>()];
+        arbitrary_bitset wrapper((unsigned char *) ((void*)&val), refl::descriptor::bit_val<T>()), map(current_map, refl::descriptor::bit_val<T>());
         map.clear();
+        // std::cout << std::endl << std::endl << idx << "-th access of field with size " << refl::trait::get_t<idx, refl::member_list<T> >::bitsize << std::endl;
         map.set_mask(bit_fill(refl::trait::get_t<idx, refl::member_list<T> >::bitsize),
                      refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
-        // std::cout << map.toString() << std::endl;
+        std::cout << map.toString() << std::endl;
+        std::cout << wrapper.toString() << std::endl;
         map &= wrapper;
-        // std::cout << map.toString() << std::endl;
+        std::cout << map.toString() << std::endl;
         map >>= refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset;
-        // std::cout << map.toString() << std::endl;
-        return map.bitset[0];
+        std::cout << map.toString() << std::endl;
+        uint64_t result = 0;
+        memcpy(&result, map.bitset, (refl::trait::get_t<idx, refl::member_list<T> >::bitsize/sizeof(arbitrary_bitset::T)) + (refl::trait::get_t<idx, refl::member_list<T> >::bitsize%sizeof(arbitrary_bitset::T) ? 1 : 0));
+        std::cout << "result=" << result << std::endl;
+        if (result == 0) {
+            map.set_mask(bit_fill(refl::trait::get_t<idx, refl::member_list<T> >::bitsize),
+             refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
+        }
+        return result;
     } else {
         return val.*(refl::trait::get_t<idx, refl::member_list<T>>::pointer);
     }
@@ -4966,10 +4975,10 @@ static inline auto getter(const T& val) {
 
 template
 <typename T,  uint64_t idx, typename K = typename refl::trait::get_t<idx, refl::member_list<T> >::value_type>
-static inline auto setter(T& orig, const K& val) {
+static inline void setter(T& orig, const K& val) {
     if constexpr (refl::trait::get_t<idx, refl::member_list<T>>::is_bitfield) {
-        uint64_t current_map[refl::descriptor::uint64_map_val<T>()];
-        arbitrary_bitset<refl::descriptor::bit_val<T>()> wrapper((uint64_t *) &orig), map(current_map);
+        unsigned char current_map[refl::descriptor::uint64_map_val<T>()];
+        arbitrary_bitset wrapper((uint64_t *) &orig, refl::descriptor::bit_val<T>()), map(current_map, refl::descriptor::bit_val<T>());
         map.clear();
         map.set_mask(bit_fill(refl::trait::get_t<idx, refl::member_list<T> >::bitsize), refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
         map.invert();
@@ -4978,7 +4987,7 @@ static inline auto setter(T& orig, const K& val) {
         map.set_mask(val, refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
         wrapper |= map;
     } else {
-        return orig.*(refl::trait::get_t<idx, refl::member_list<T>>::pointer) = val;
+        orig.*(refl::trait::get_t<idx, refl::member_list<T>>::pointer) = val;
     }
 }
 

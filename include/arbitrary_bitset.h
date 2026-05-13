@@ -29,14 +29,18 @@
 
 #include "jackbergus/data_structures/IntervalTree.h"
 
-template<uint64_t Size>
+
 struct arbitrary_bitset {
-    uint64_t* bitset;
-    constexpr const static uint64_t MAX_ARRAY_SIZE = Size/(sizeof(uint64_t)*8) + ((Size % (sizeof(uint64_t)*8)) ? 1 : 0);
 
-    arbitrary_bitset(uint64_t* buffer = nullptr) : bitset(buffer) {}
+    const uint64_t Size;
+    const uint64_t MAX_ARRAY_SIZE;
+    using T = unsigned char;
+    constexpr static const uint64_t BYTE_SIZE = sizeof(T);
+    constexpr static const uint64_t BIT_SIZE = BYTE_SIZE * 8;
+    T* bitset;
 
-    arbitrary_bitset<Size>& operator>>=(uint64_t __position)
+    arbitrary_bitset(T* buffer = nullptr, uint64_t Size = 0) : bitset(buffer), Size(Size), MAX_ARRAY_SIZE(Size/(BIT_SIZE) + ((Size % (BIT_SIZE)) ? 1 : 0)) {}
+    arbitrary_bitset& operator>>=(uint64_t __position)
 {
         _M_do_right_shift(__position);
     return *this;
@@ -52,8 +56,8 @@ struct arbitrary_bitset {
         }
 
 // xxxxx|xxxxx|xxxxx|xxxxx
-        const uint64_t offset = shift % (sizeof(uint64_t)*8);
-        uint64_t wshift = shift / (sizeof(uint64_t)*8);
+        const uint64_t offset = shift % (BIT_SIZE);
+        uint64_t wshift = shift / (BIT_SIZE);
 
         if (offset == 0) {
             for (uint64_t idx = 0; idx <MAX_ARRAY_SIZE; idx++) {
@@ -63,7 +67,7 @@ struct arbitrary_bitset {
                     bitset[idx] = 0;
             }
         } else {
-            const uint64_t __sub_offset = ((sizeof(uint64_t)*8) - offset);
+            const uint64_t __sub_offset = ((BIT_SIZE) - offset);
             for (uint64_t idx = 0; idx <MAX_ARRAY_SIZE; idx++) {
                 if (idx+wshift <MAX_ARRAY_SIZE) {
                     const auto val_low = bitset[idx+wshift] >> offset;
@@ -79,44 +83,44 @@ struct arbitrary_bitset {
 
 
     void clear() {
-        uint64_t N = Size/sizeof(uint64_t) + (Size % sizeof(uint64_t) ? 1 : 0);
+        uint64_t N = Size/BYTE_SIZE + (Size % BYTE_SIZE ? 1 : 0);
         for (uint64_t i = 0; i < N; i++) {
             bitset[i] = 0;
         }
     }
 
     void fill() {
-        uint64_t N = Size/sizeof(uint64_t) + (Size % sizeof(uint64_t) ? 1 : 0);
+        uint64_t N = Size/BYTE_SIZE + (Size % BYTE_SIZE ? 1 : 0);
         for (uint64_t i = 0; i < N; i++) {
-            bitset[i] = std::numeric_limits<uint64_t>::max();
+            bitset[i] = std::numeric_limits<unsigned char>::max();
         }
     }
 
 
-   uint64_t do_find_first(uint64_t not_found = Size) const
+   uint64_t do_find_first(uint64_t not_found) const
   {
       for (uint64_t i = 0; i < Size; i++)
       {
           const uint64_t& dis = bitset[i];
           if (dis != static_cast<uint64_t>(0))
-              return (i * (sizeof(uint64_t)*8)
+              return (i * (BIT_SIZE)
                   + __builtin_ctzl(dis));
       }
       // not found, so return an indication of failure.
       return not_found;
   }
 
-    arbitrary_bitset<Size>& operator &=(const arbitrary_bitset<Size>& __x)
+    arbitrary_bitset& operator &=(const arbitrary_bitset& __x)
 {
-        constexpr uint64_t final = Size/(sizeof(uint64_t)*8) + ((Size%(sizeof(uint64_t)*8) == 0) ? 0 : 1);
+        uint64_t final = Size/(BIT_SIZE) + ((Size%(BIT_SIZE) == 0) ? 0 : 1);
         for (uint64_t __i = 0; __i < final; __i++)
             bitset[__i] &= __x.bitset[__i];
         return *this;
 }
 
-    arbitrary_bitset<Size>& operator |=(const arbitrary_bitset<Size>& __x)
+    arbitrary_bitset& operator |=(const arbitrary_bitset& __x)
     {
-        constexpr uint64_t final = Size/(sizeof(uint64_t)*8) + ((Size%(sizeof(uint64_t)*8) == 0) ? 0 : 1);
+        uint64_t final = Size/(BIT_SIZE) + ((Size%(BIT_SIZE) == 0) ? 0 : 1);
         for (uint64_t __i = 0; __i < final; __i++)
             bitset[__i] |= __x.bitset[__i];
         return *this;
@@ -134,10 +138,10 @@ std::string toString() const {
         return s;
     }
 
-    std::unordered_set<uint64_t> deltaFromIntervalTreeSlot(const IntervalTree<uint64_t, uint64_t>& it, const arbitrary_bitset<Size>& rhs) {
+    std::unordered_set<uint64_t> deltaFromIntervalTreeSlot(const IntervalTree<uint64_t, uint64_t>& it, const arbitrary_bitset& rhs) {
         std::unordered_set<uint64_t> result;
-        constexpr uint64_t final = Size/(sizeof(uint64_t)*8) + ((Size%(sizeof(uint64_t)*8) == 0) ? 0 : 1);
-        static_assert(final == MAX_ARRAY_SIZE);
+        uint64_t final = Size/(BIT_SIZE) + ((Size%(BIT_SIZE) == 0) ? 0 : 1);
+        // static_assert(final == MAX_ARRAY_SIZE);
         uint64_t tmp_bitset[MAX_ARRAY_SIZE];
         for (uint64_t __i = 0; __i < final; __i++) {
             tmp_bitset[__i] = bitset[__i] ^ rhs.bitset[__i];
@@ -149,7 +153,7 @@ std::string toString() const {
         {
             const uint64_t& dis = tmp_bitset[i];
             if (dis != static_cast<uint64_t>(0)) {
-                current_bit = (i * (sizeof(uint64_t)*8)
+                current_bit = (i * (BIT_SIZE)
                     + __builtin_ctzl(dis));
                 break;
             }
@@ -169,19 +173,19 @@ std::string toString() const {
 
 
                 // check out of bounds
-                if (current_bit >= Size /** (sizeof(uint64_t)*8)*/)
+                if (current_bit >= Size /** (BIT_SIZE)*/)
                     break;
 
                 // search first word
-                size_t i = current_bit / (sizeof(uint64_t)*8);
+                size_t i = current_bit / (BIT_SIZE);
                 uint64_t thisword = tmp_bitset[i];
 
                 // mask off bits below bound
-                thisword &= (~static_cast<uint64_t>(0)) << current_bit % (sizeof(uint64_t)*8);
+                thisword &= (~static_cast<uint64_t>(0)) << current_bit % (BIT_SIZE);
 
                 if (thisword != static_cast<uint64_t>(0))
                 {
-                    current_bit = (i * (sizeof(uint64_t)*8) + __builtin_ctzl(thisword));
+                    current_bit = (i * (BIT_SIZE) + __builtin_ctzl(thisword));
                 } else {
                     // check subsequent words
                     i++;
@@ -190,7 +194,7 @@ std::string toString() const {
                     {
                         thisword = tmp_bitset[i];
                         if (thisword != static_cast<uint64_t>(0)) {
-                            current_bit = (i * (sizeof(uint64_t)*8)
+                            current_bit = (i * (BIT_SIZE)
                                 + __builtin_ctzl(thisword));
                             found = true;
                             break;
@@ -213,18 +217,18 @@ std::string toString() const {
         ++prev;
 
         // check out of bounds
-        if (prev >= Size /** (sizeof(uint64_t)*8)*/)
+        if (prev >= Size /** (BIT_SIZE)*/)
             return not_found;
 
         // search first word
-        size_t i = prev / (sizeof(uint64_t)*8);
+        size_t i = prev / (BIT_SIZE);
         uint64_t thisword = bitset[i];
 
         // mask off bits below bound
-        thisword &= (~static_cast<uint64_t>(0)) << prev % (sizeof(uint64_t)*8);
+        thisword &= (~static_cast<uint64_t>(0)) << prev % (BIT_SIZE);
 
         if (thisword != static_cast<uint64_t>(0))
-            return (i * (sizeof(uint64_t)*8)
+            return (i * (BIT_SIZE)
                 + __builtin_ctzl(thisword));
 
         // check subsequent words
@@ -233,7 +237,7 @@ std::string toString() const {
         {
             thisword = bitset[i];
             if (thisword != static_cast<uint64_t>(0))
-                return (i * (sizeof(uint64_t)*8)
+                return (i * (BIT_SIZE)
                     + __builtin_ctzl(thisword));
         }
         // not found, so return an indication of failure.
@@ -241,7 +245,7 @@ std::string toString() const {
     } // end _M_do_find_next
 
     void invert() {
-        uint64_t N = Size/sizeof(uint64_t) + (Size % sizeof(uint64_t) ? 1 : 0);
+        uint64_t N = Size/BYTE_SIZE + (Size % BYTE_SIZE ? 1 : 0);
         for (uint64_t i = 0; i < N; i++) {
             bitset[i] = ~bitset[i];
         }
@@ -250,11 +254,19 @@ std::string toString() const {
     void set_mask(uint64_t mask, uint64_t lowbit) {
         int index = lowbit / (sizeof(uint64_t)*8);
         int offset = lowbit % (sizeof(uint64_t)*8);
-        bitset[index] |= (mask<<offset);
-        if (index*((sizeof(uint64_t)*8))+1 < Size) {
-            mask >>= ((sizeof(uint64_t) - offset));
-            bitset[index+1] |= (mask);
+        auto val = (mask<<offset);
+        for (uint64_t j = 0; index+j< MAX_ARRAY_SIZE && j<sizeof(uint64_t)/BYTE_SIZE; j++) {
+            bitset[index+j] |= ((unsigned char*)&val)[j];
         }
+        mask >>= ((sizeof(uint64_t)*8 - offset));
+        for (uint64_t j = 0; index+j+sizeof(uint64_t)/BYTE_SIZE< MAX_ARRAY_SIZE && j<sizeof(uint64_t)/BYTE_SIZE; j++) {
+            bitset[index+j+sizeof(uint64_t)/BYTE_SIZE] |= ((unsigned char*)&mask)[j];
+        }
+        // bitset[index] |= (mask<<offset);
+        // if (index*((sizeof(uint64_t)))+1 < Size) {
+        //     mask >>= ((sizeof(uint64_t)*8 - offset));
+        //     bitset[index+1] |= (mask);
+        // }
     }
 };
 
