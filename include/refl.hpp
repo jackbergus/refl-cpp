@@ -4485,7 +4485,7 @@ namespace refl::detail
     public: \
         typedef decltype(type::FieldName_) value_type; \
         static constexpr auto pointer { &type::FieldName_ }; \
-        static constexpr auto bitsize{ bitsizeof(type, FieldName_)}; \
+        static constexpr auto bitsize{ sizeof(value_type)*8 }; \
         static constexpr bool isbitfield{ false }; \
         /*REFL_DETAIL_MEMBER_PROXY(FieldName_);*/ \
     };

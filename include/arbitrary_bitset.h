@@ -24,6 +24,7 @@
 #define MORE_THAN_BASIC_ARBITRARY_BITSET_H
 #include <cstdint>
 #include <limits>
+#include <set>
 #include <string>
 #include <unordered_set>
 
@@ -32,8 +33,8 @@
 
 struct arbitrary_bitset {
 
-    const uint64_t Size;
-    const uint64_t MAX_ARRAY_SIZE;
+    uint64_t Size;
+    uint64_t MAX_ARRAY_SIZE;
     using T = unsigned char;
     constexpr static const uint64_t BYTE_SIZE = sizeof(T);
     constexpr static const uint64_t BIT_SIZE = BYTE_SIZE * 8;
@@ -138,8 +139,8 @@ std::string toString() const {
         return s;
     }
 
-    std::unordered_set<uint64_t> deltaFromIntervalTreeSlot(const IntervalTree<uint64_t, uint64_t>& it, const arbitrary_bitset& rhs) {
-        std::unordered_set<uint64_t> result;
+    std::set<uint64_t> deltaFromIntervalTreeSlot(const IntervalTree<uint64_t, uint64_t>& it, const arbitrary_bitset& rhs) {
+        std::set<uint64_t> result;
         uint64_t final = Size/(BIT_SIZE) + ((Size%(BIT_SIZE) == 0) ? 0 : 1);
         // static_assert(final == MAX_ARRAY_SIZE);
         uint64_t tmp_bitset[MAX_ARRAY_SIZE];
