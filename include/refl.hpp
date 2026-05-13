@@ -4949,7 +4949,7 @@ template
 static inline auto getter(const T& val) {
     if constexpr (refl::trait::get_t<idx, refl::member_list<T>>::is_bitfield) {
         uint64_t current_map[refl::descriptor::uint64_map_val<T>()];
-        arbitrary_bitset<refl::descriptor::bit_val<T>()> wrapper((uint64_t *) &val), map(current_map);
+        arbitrary_bitset<refl::descriptor::bit_val<T>()> wrapper((uint64_t *) ((void*)&val)), map(current_map);
         map.clear();
         map.set_mask(bit_fill(refl::trait::get_t<idx, refl::member_list<T> >::bitsize),
                      refl::trait::get_t<idx, refl::member_list<T> >::bitfield_offset);
