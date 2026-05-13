@@ -4501,13 +4501,13 @@ static constexpr bool isbitfield{ false }; \
 /*REFL_DETAIL_MEMBER_PROXY(FieldName_);*/ \
 };
 
-#define REFL_BITFIELD(FieldName_, ...) \
+#define REFL_BITFIELD(FieldName_, val, ...) \
 REFL_DETAIL_MEMBER_HEADER { \
 REFL_DETAIL_MEMBER_COMMON(field, FieldName_, __VA_ARGS__) \
 public: \
 typedef decltype(type::FieldName_) value_type; \
 static constexpr uint64_t* pointer {  nullptr }; \
-static constexpr auto bitsize{ bitsizeofbit(type, FieldName_)}; \
+static constexpr auto bitsize{ val }; \
         static constexpr bool isbitfield{ true }; \
 /*REFL_DETAIL_MEMBER_PROXY(FieldName_);*/ \
 };

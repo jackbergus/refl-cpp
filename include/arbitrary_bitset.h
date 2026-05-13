@@ -25,6 +25,9 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <unordered_set>
+
+#include "jackbergus/data_structures/IntervalTree.h"
 
 template<uint64_t Size>
 struct arbitrary_bitset {
@@ -131,13 +134,86 @@ std::string toString() const {
         return s;
     }
 
+    std::unordered_set<uint64_t> deltaFromIntervalTreeSlot(const IntervalTree<uint64_t, uint64_t>& it, const arbitrary_bitset<Size>& rhs) {
+        std::unordered_set<uint64_t> result;
+        constexpr uint64_t final = Size/(sizeof(uint64_t)*8) + ((Size%(sizeof(uint64_t)*8) == 0) ? 0 : 1);
+        static_assert(final == MAX_ARRAY_SIZE);
+        uint64_t tmp_bitset[MAX_ARRAY_SIZE];
+        for (uint64_t __i = 0; __i < final; __i++) {
+            tmp_bitset[__i] = bitset[__i] ^ rhs.bitset[__i];
+        }
+
+
+        uint64_t current_bit = Size;
+        for (uint64_t i = 0; i < Size; i++)
+        {
+            const uint64_t& dis = tmp_bitset[i];
+            if (dis != static_cast<uint64_t>(0)) {
+                current_bit = (i * (sizeof(uint64_t)*8)
+                    + __builtin_ctzl(dis));
+                break;
+            }
+        }
+        Interval<uint64_t, uint64_t> tmp{0, 0, 0};
+        while (current_bit < Size)
+        {
+            tmp.low = current_bit;
+            tmp.high = current_bit;
+            auto result_ptr = it.lookup(tmp);
+            if (!result_ptr) {
+                std::cout << "ERROR" << std::endl;
+                current_bit = Size;
+            } else {
+                result.insert(result_ptr->value);
+                ++current_bit;
+
+
+                // check out of bounds
+                if (current_bit >= Size /** (sizeof(uint64_t)*8)*/)
+                    break;
+
+                // search first word
+                size_t i = current_bit / (sizeof(uint64_t)*8);
+                uint64_t thisword = tmp_bitset[i];
+
+                // mask off bits below bound
+                thisword &= (~static_cast<uint64_t>(0)) << current_bit % (sizeof(uint64_t)*8);
+
+                if (thisword != static_cast<uint64_t>(0))
+                {
+                    current_bit = (i * (sizeof(uint64_t)*8) + __builtin_ctzl(thisword));
+                } else {
+                    // check subsequent words
+                    i++;
+                    bool found = false;
+                    for (; i < Size; i++)
+                    {
+                        thisword = tmp_bitset[i];
+                        if (thisword != static_cast<uint64_t>(0)) {
+                            current_bit = (i * (sizeof(uint64_t)*8)
+                                + __builtin_ctzl(thisword));
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        current_bit = Size;
+                    }
+                }
+            }
+        }
+
+        // not found, so return an indication of failure.
+        return result;
+    }
+
     uint64_t do_find_next(size_t prev, size_t not_found) const
     {
         // make bound inclusive
         ++prev;
 
         // check out of bounds
-        if (prev >= Size * (sizeof(uint64_t)*8))
+        if (prev >= Size /** (sizeof(uint64_t)*8)*/)
             return not_found;
 
         // search first word
