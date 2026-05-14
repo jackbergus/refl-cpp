@@ -30,6 +30,13 @@
 
 #include "jackbergus/data_structures/IntervalTree.h"
 
+#if _MSC_VER
+    static inline uint64_t __builtin_ctzl(uint64_t dis) {
+        unsigned long pos;
+        unsigned char is_nonzero = _BitScanReverse64(&pos, dis);
+        return pos;
+    }
+#endif
 
 struct arbitrary_bitset {
 
@@ -103,6 +110,7 @@ struct arbitrary_bitset {
       for (uint64_t i = 0; i < Size; i++)
       {
           const uint64_t& dis = bitset[i];
+
           if (dis != static_cast<uint64_t>(0))
               return (i * (BIT_SIZE)
                   + __builtin_ctzl(dis));
@@ -110,6 +118,8 @@ struct arbitrary_bitset {
       // not found, so return an indication of failure.
       return not_found;
   }
+
+
 
     arbitrary_bitset& operator &=(const arbitrary_bitset& __x)
 {
@@ -143,7 +153,11 @@ std::string toString() const {
         std::set<uint64_t> result;
         uint64_t final = Size/(BIT_SIZE) + ((Size%(BIT_SIZE) == 0) ? 0 : 1);
         // static_assert(final == MAX_ARRAY_SIZE);
+#if _MSC_VER
+        uint64_t* tmp_bitset = (uint64_t*)malloc(sizeof(MAX_ARRAY_SIZE));
+#else
         uint64_t tmp_bitset[MAX_ARRAY_SIZE];
+#endif
         for (uint64_t __i = 0; __i < final; __i++) {
             tmp_bitset[__i] = bitset[__i] ^ rhs.bitset[__i];
         }
@@ -209,6 +223,11 @@ std::string toString() const {
         }
 
         // not found, so return an indication of failure.
+#if _MSC_VER
+        free(tmp_bitset);
+#else
+        uint64_t tmp_bitset[MAX_ARRAY_SIZE];
+#endif
         return result;
     }
 
