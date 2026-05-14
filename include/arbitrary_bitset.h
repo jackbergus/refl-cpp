@@ -84,15 +84,15 @@ struct arbitrary_bitset {
 
 
     void clear() {
-        uint64_t N = Size/BYTE_SIZE + (Size % BYTE_SIZE ? 1 : 0);
-        for (uint64_t i = 0; i < N; i++) {
+        // uint64_t N = Size/BYTE_SIZE + (Size % BYTE_SIZE ? 1 : 0);
+        for (uint64_t i = 0; i < MAX_ARRAY_SIZE; i++) {
             bitset[i] = 0;
         }
     }
 
     void fill() {
-        uint64_t N = Size/BYTE_SIZE + (Size % BYTE_SIZE ? 1 : 0);
-        for (uint64_t i = 0; i < N; i++) {
+        // uint64_t N = Size/BYTE_SIZE + (Size % BYTE_SIZE ? 1 : 0);
+        for (uint64_t i = 0; i < MAX_ARRAY_SIZE; i++) {
             bitset[i] = std::numeric_limits<unsigned char>::max();
         }
     }
@@ -113,16 +113,16 @@ struct arbitrary_bitset {
 
     arbitrary_bitset& operator &=(const arbitrary_bitset& __x)
 {
-        uint64_t final = Size/(BIT_SIZE) + ((Size%(BIT_SIZE) == 0) ? 0 : 1);
-        for (uint64_t __i = 0; __i < final; __i++)
+        // uint64_t final = Size/(BIT_SIZE) + ((Size%(BIT_SIZE) == 0) ? 0 : 1);
+        for (uint64_t __i = 0; __i < MAX_ARRAY_SIZE; __i++)
             bitset[__i] &= __x.bitset[__i];
         return *this;
 }
 
     arbitrary_bitset& operator |=(const arbitrary_bitset& __x)
     {
-        uint64_t final = Size/(BIT_SIZE) + ((Size%(BIT_SIZE) == 0) ? 0 : 1);
-        for (uint64_t __i = 0; __i < final; __i++)
+        // uint64_t final = Size/(BIT_SIZE) + ((Size%(BIT_SIZE) == 0) ? 0 : 1);
+        for (uint64_t __i = 0; __i < MAX_ARRAY_SIZE; __i++)
             bitset[__i] |= __x.bitset[__i];
         return *this;
     }
@@ -246,8 +246,8 @@ std::string toString() const {
     } // end _M_do_find_next
 
     void invert() {
-        uint64_t N = Size/BYTE_SIZE + (Size % BYTE_SIZE ? 1 : 0);
-        for (uint64_t i = 0; i < N; i++) {
+        // uint64_t N = Size/BYTE_SIZE + (Size % BYTE_SIZE ? 1 : 0);
+        for (uint64_t i = 0; i < MAX_ARRAY_SIZE; i++) {
             bitset[i] = ~bitset[i];
         }
     }
